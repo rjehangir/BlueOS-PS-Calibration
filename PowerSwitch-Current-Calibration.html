@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Battery Status Viewer</title>
+  <!-- Add Vuetify CSS and JavaScript -->
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.14/dist/vuetify.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font/css/materialdesignicons.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.14/dist/vuetify.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <v-app>
+      <v-main>
+        <v-container>
+          <v-row justify="center">
+            <v-col cols="12" md="6">
+              <h1 class="headline">BlueBoat Current Sensor Calibration</h1>
+              <p class="caption">This page is used to calibrate the BlueBoat's Power Switch current sensor offset based on the known expected current draw of the system. It checks current parameters, measures average current, and generates a new offset value. With just default hardware, we expect 0.5A quiescent current draw.</p>
+
+              <v-card outlined>
+                <v-card-text>
+                  <v-text-field
+                    label="Vehicle URL"
+                    v-model="url"
+                  ></v-text-field>
+
+                  <v-text-field
+                    label="Target Current"
+                    v-model="target_current"
+                    append-icon="mdi-alpha-a-box-outline"
+                  ></v-text-field>
+
+                  <v-row align="center">
+                    <!-- Label -->
+                    <v-col cols="auto">
+                      <span>Vehicle Connection:</span>
+                    </v-col>
+
+                    <!-- Indicator light -->
+                    <v-col cols="auto">
+                      <v-icon
+                        :color="connected ? 'green' : 'grey'"
+                        size="32"
+                      >
+                        {{ connected ? 'mdi-lan-connect' : 'mdi-lan-disconnect' }}
+                      </v-icon>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+
+
+              <v-card-actions class="justify-center">
+                <v-btn v-if="step == 0 && connected" color="primary" @click="start" x-large>Start Calibration</v-btn>
+              </v-card-actions>
+
+              <v-card v-if="step >= 1" class="mb-4" outlined>
+                <v-card-title>Read Current Parameters</v-card-title>
+                <v-row>
+                <!-- First Element -->
+                <v-col cols="6" class="text-center">
+                  <v-list-item three-line>
+                    <v-list-item-content>
+                      <v-list-item-title class="text-h5 mb-1">
+                        <span v-if="offset_param">{{ offset_param.toFixed(3) }} V</span>
+                        <v-progress-circular v-else indeterminate size="15" width="2"></v-progress-circular>
+                      </v-list-item-title>
+                      <v-list-item-subtitle>BATT_AMP_OFFSET</v-list-item-subtitle>
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-col>
+
+                <!-- Second Element -->
+                <v-col cols="6" class="text-center">
+                  <v-list-item three-line>
+                    <v-list-item-content>
+                      <v-list-item-title class="text-h5 mb-1">
+                        <span v-if="batt_amp_pervlt">{{ batt_amp_pervlt.toFixed(3) }} A/V</span>
+                        <v-progress-circular v-else indeterminate size="15" width="2"></v-progress-circular>
+                      </v-list-item-title>
+                      <v-list-item-subtitle>BATT_AMP_PERVLT</v-list-item-subtitle>
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-col>
+              </v-row>
+              </v-card>
+              
+              <v-card v-if="step >= 2" class="mb-4" outlined>  
+                <v-card-title>Measure Average Current</v-card-title>
+
+                <v-sparkline
+                  :value="points"
+                  :smooth="true"
+                  :padding="10"
+                  stroke-width="2"
+                  style="height: 100px;width:100%;display: block;"
+                ></v-sparkline>
+
+                <v-progress-linear v-if="step == 2" :value="progress" color="primary"></v-progress-linear>
+
+                <v-row v-if="average !== null">
+                  <!-- Voltage Element -->
+                  <v-col cols="4" class="text-center">
+                    <v-list-item three-line>
+                      <v-list-item-content>
+                        <v-list-item-title class="text-h5 mb-1">
+                          {{ voltage }} V
+                        </v-list-item-title>
+                        <v-list-item-subtitle>VOLTAGE</v-list-item-subtitle>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </v-col>
+
+                  <!-- Average Current Element -->
+                  <v-col cols="4" class="text-center">
+                    <v-list-item three-line>
+                      <v-list-item-content>
+                        <v-list-item-title class="text-h5 mb-1">
+                          {{ average }} A
+                        </v-list-item-title>
+                        <v-list-item-subtitle>AVERAGE CURRENT</v-list-item-subtitle>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </v-col>
+
+                  <!-- Average Power Element -->
+                  <v-col cols="4" class="text-center">
+                    <v-list-item three-line>
+                      <v-list-item-content>
+                        <v-list-item-title class="text-h5 mb-1">
+                          {{ power }} W
+                        </v-list-item-title>
+                        <v-list-item-subtitle>AVERAGE POWER</v-list-item-subtitle>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </v-col>
+                </v-row>
+              </v-card>
+
+              <v-card v-if="step >= 3" class="mb-4" outlined>
+                <v-card-title>Calculate Offset Parameter</v-card-title>
+
+                <v-list-item v-if="new_offset !== null" three-line class="text-center">
+                  <v-list-item-content>
+                    <v-list-item-title class="text-h5 mb-1">
+                      {{ new_offset.toFixed(3) }} V
+                    </v-list-item-title>
+                    <v-list-item-subtitle>OFFSET</v-list-item-subtitle>
+                  </v-list-item-content>
+                </v-list-item>
+
+                <v-alert v-if="new_offset_valid" type="warning" dense>
+                  Warning: Something seems wrong here, please double check and proceed with caution! We expect an offset between 1.6-1.7 V
+                </v-alert>
+
+                <v-card-actions class="justify-center">
+                  <v-btn color="primary" @click="start" x-large><v-icon left>mdi-repeat</v-icon> Measure Again</v-btn>
+                  <v-btn v-if="new_offset !== null" color="primary" @click="setParameters" x-large><v-icon left>mdi-content-save</v-icon> Set Parameters</v-btn>
+                </v-card-actions>
+              </v-card>
+
+              <v-card v-if="step >= 5" class="mb-4" outlined>
+                <v-card-title>Setting Parameters</v-card-title>
+
+                <v-list-item three-line class="text-center">
+                  <v-list-item-content>
+                    <v-list-item-title class="text-h5 mb-1">
+                      <span v-if="verify_offset_param">{{ verify_offset_param.toFixed(3) }} V</span>
+                      <v-progress-circular v-else indeterminate size="15" width="2"></v-progress-circular>
+                    </v-list-item-title>
+                    <v-list-item-subtitle>BATT_AMP_OFFSET</v-list-item-subtitle>
+                </v-list-item>
+              </v-card>
+
+              <v-container v-if="step >= 6">
+                <!-- Success Message -->
+                <transition name="fade">
+                  <v-alert v-if="success" type="success" border="left" colored-border>
+                    Setting parameter was successful!
+                  </v-alert>
+                  <v-alert v-else type="error" border="left" colored-border>
+                    Setting parameter failed. Please try again.
+                  </v-alert>
+                </transition>
+              </v-container>
+            </v-col>
+          </v-row>
+        </v-container>
+      </v-main>
+    </v-app>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: {
+        dark: true,
+        connected: false,
+        batteryData: [],
+        voltage: null,
+        average: null,
+        power: null,
+        offset_param: null,
+        verify_offset_param: null,
+        batt_amp_pervlt: null,
+        new_offset: null,
+        count: 0,
+        progress: 0,
+        target_current: 0.5,
+        step: 0,
+        points: [],
+        success: false,
+        new_offset_valid: true,
+        url: "http://blueos.local"
+      },
+      methods: {
+        fetchData() {
+          fetch(this.url + "/mavlink2rest/mavlink/vehicles/1/components/1/messages/BATTERY_STATUS")
+            .then(response => response.json())
+            .then(data => {
+              const currentBattery = data.message.current_battery;
+              this.voltage = (data.message.voltages[0]/1000).toFixed(2);
+              this.batteryData.push(currentBattery);
+              this.addPoint(currentBattery);
+              this.count = this.count + 1;
+              this.progress = this.count / 30 * 100;
+              if (this.batteryData.length >= 30) {
+                this.step++;
+              }
+            })
+            .catch(error => console.error(error));
+        },
+
+        async readParameters() {
+          await this.readParameter("BATT_AMP_OFFSET");
+          await this.readParameter("BATT_AMP_PERVLT");
+
+          if ( this.verify_offset_param !== null && this.batt_amp_pervlt !== null ) {
+            this.step++;
+          }
+        },
+
+        async readParameter(param) {
+          const url = this.url + "/mavlink2rest/mavlink";
+
+          const paddedParamName = param + "\u0000".repeat(16 - param.length);
+
+          const data = {
+            header: {
+              system_id: 255,
+              component_id: 1,
+              sequence: 0
+            },
+            message: {
+              type: "PARAM_REQUEST_READ",
+              param_index: -1,
+              target_system: 0,
+              target_component: 0,
+              param_id: [...paddedParamName]
+            }
+          };
+
+          // First fetch request
+          fetch(url, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(data)
+          })
+          .then(response => {
+              // Check if the response is successful before proceeding
+              // if (!response.ok) {
+              //     throw new Error('First request failed');
+              // }
+
+              // Make the second fetch request after the first one completes
+              return fetch(this.url + "/mavlink2rest/mavlink/vehicles/1/components/1/messages/PARAM_VALUE");
+          })
+          .then(response => response.json())
+          .then(data => {
+              let param_str = data.message.param_id.filter(char => char !== '\x00').join('');
+              if (param_str === "BATT_AMP_OFFSET") {
+                  this.offset_param = data.message.param_value;
+                  this.verify_offset_param = data.message.param_value;
+              }
+              if (param_str === "BATT_AMP_PERVLT") {
+                  this.batt_amp_pervlt = data.message.param_value;
+              }
+          })
+          .catch(error => console.error(error));
+        },
+
+        setParameters() {
+          this.step = 4;
+
+          const url = this.url + "/mavlink2rest/mavlink";
+
+          const param = "BATT_AMP_OFFSET";
+
+          const paddedParamName = param + "\u0000".repeat(16 - param.length);
+
+          const data = {
+            header: {
+              system_id: 255,
+              component_id: 1,
+              sequence: 0
+            },
+            message: {
+              type: "PARAM_SET",
+              param_value: this.new_offset,
+              target_system: 0,
+              target_component: 0,
+              param_id: [...paddedParamName],
+              param_type: {
+                type: "MAV_PARAM_TYPE_UINT8"
+              }
+            }
+          };
+
+          // First fetch request
+          fetch(url, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(data)
+          })
+          .then(response => {
+              // Check if the response is successful before proceeding
+              // if (!response.ok) {
+              //     throw new Error('Param set failed');
+              // }
+
+              this.step = 5;
+              this.verify_offset_param = null;
+          })
+          .catch(error => console.error(error));
+        },
+
+        calculate() {
+          const sum = this.batteryData.reduce((acc, value) => acc + value, 0);
+          this.average = (sum / this.batteryData.length / 100).toFixed(3);
+          this.power = (this.voltage * this.average).toFixed(2);
+
+          this.new_offset = (this.average - this.target_current) / this.batt_amp_pervlt + this.offset_param;
+          if ( this.new_offset > 1.6 || this.new_offset < 1.7 ) {
+            this.new_offset_valid = true;
+          } else {
+            this.new_offset_valid = false;
+          }
+        },
+
+        start() {
+          this.average = null;
+          this.new_offset = null;
+          this.offset_param = null;
+          this.verify_offset_param = null;
+          this.batt_amp_pervlt = null;
+          this.batteryData = [];
+          this.count = 0;
+          this.progress = 0;
+          this.success = false;
+          this.step = 1;
+          this.points = [];
+        },
+
+        addPoint() {
+          const newPoint = Math.random() * 10; // Generating a random point for demonstration purposes
+          if (this.points.length >= 30) {
+            this.points.shift(); // Remove the oldest point if there are 30 points
+          }
+          this.points.push(newPoint);
+        },
+
+        checkConnection() {
+          let timeoutId;
+          const timeoutDuration = 500;
+
+          const timeout = new Promise((_, reject) =>
+            timeoutId = setTimeout(() => {
+              console.log('Request timed out.');
+              reject(); // You can still reject to move to the .catch() block, but without an error message.
+            }, timeoutDuration)
+          );
+
+          Promise.race([
+            fetch(this.url + "/mavlink2rest/mavlink/vehicles/1/components/1/messages/BATTERY_STATUS"),
+            timeout
+          ])
+          .then(response => {
+            clearTimeout(timeoutId); // Clear the timeout            
+            // Check if the response is successful
+            if (!response.ok) {
+              throw new Error('Failed to fetch data');
+            }
+            return response.json();
+          })
+          .then(data => {
+            this.connected = true;  // Set connection status to true
+          })
+          .catch(error => {
+            this.connected = false;  // Set connection status to false
+            this.step = 0;
+          });
+        },
+
+        run() {
+          switch ( this.step ) {
+          case 1:
+            this.readParameters();
+            break;
+          case 2:
+            this.fetchData();
+            break;
+          case 3:
+            this.calculate();
+            break;
+          case 4:
+            break;
+          case 5:
+            this.readParameters();
+            break;
+          case 6:
+            if ( Math.abs(this.new_offset - this.verify_offset_param) < 0.00001 ) {
+              this.success = true;
+            }
+          }
+        }
+      },
+      created() {
+        setInterval(this.run, 333);
+        setInterval(this.checkConnection, 1000);
+      }
+    });
+
+    
+  </script>
+
+  <style scoped>
+  /* You can add styles specific to this component here */
+  .mb-4 {
+    margin-bottom: 1rem;
+  }
+  body, .v-application {
+    font-family: 'Roboto', sans-serif !important;
+  }
+  </style>
+</body>
+
+</html>
