@@ -383,7 +383,7 @@
 
         checkConnection() {
           let timeoutId;
-          const timeoutDuration = 500;
+          const timeoutDuration = 1500;
 
           const timeout = new Promise((_, reject) =>
             timeoutId = setTimeout(() => {
@@ -438,8 +438,8 @@
       },
       created() {
         setInterval(this.run, 333);
-        setInterval(this.checkConnection, 1000);
-        this.url = window.location.hostname ? window.location.hostname : "http://blueos.local";
+        setInterval(this.checkConnection, 2000);
+        this.url = window.location.hostname ? window.location.protocol + '//' + window.location.hostname : "http://blueos.local";
       }
     });
 
