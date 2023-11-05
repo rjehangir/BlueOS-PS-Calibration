@@ -1,0 +1,9 @@
+{
+    "name": "Power Switch Calibration",
+    "description": "Calibrate the analog offset of your Power Switch to improve current and power measurement accuracy.",
+    "icon": "mdi-current-dc",
+    "company": "Blue Robotics",
+    "version": "0.0.1",
+    "new_page": false,
+    "webpage": "https://github.com/rjehangir/blueos-ps-calibration"
+}

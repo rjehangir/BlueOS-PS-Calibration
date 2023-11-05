@@ -17,20 +17,22 @@
         <v-container>
           <v-row justify="center">
             <v-col cols="12" md="6">
-              <h1 class="headline">BlueBoat Current Sensor Calibration</h1>
-              <p class="caption">This page is used to calibrate the BlueBoat's Power Switch current sensor offset based on the known expected current draw of the system. It checks current parameters, measures average current, and generates a new offset value. With just default hardware, we expect 0.45A average quiescent current draw.</p>
+              <h1 class="headline bold">BlueBoat Current Sensor Calibration</h1>
+              <p class="caption">This page is used to calibrate the BlueBoat's Power Switch current sensor offset based on the known expected current draw of the system. It checks current parameters, measures average current, and generates a new offset value.</p>
 
               <v-card outlined>
                 <v-card-text>
                   <v-text-field
                     label="Vehicle URL"
                     v-model="url"
+                    hint="http://blueos.local or direct IP address"
                   ></v-text-field>
 
                   <v-text-field
                     label="Target Current"
                     v-model="target_current"
                     append-icon="mdi-alpha-a-box-outline"
+                    hint="Default is 0.45A average quiescent current for the BlueBoat"
                   ></v-text-field>
 
                   <v-row align="center">
@@ -153,7 +155,7 @@
                 </v-list-item>
 
                 <v-alert v-if="!new_offset_valid" type="warning" dense>
-                  Warning: Something seems wrong here, please double check and proceed with caution! We expect an offset between 1.6-1.7 V
+                  Warning: Something seems wrong here, please double check and proceed with caution! We expect an offset between 1.5-1.7 V
                 </v-alert>
 
                 <v-card-actions class="justify-center">
@@ -350,7 +352,7 @@
           this.power = (this.voltage * this.average).toFixed(2);
 
           this.new_offset = (this.average - this.target_current) / this.batt_amp_pervlt + this.offset_param;
-          if ( this.new_offset > 1.6 && this.new_offset < 1.7 ) {
+          if ( this.new_offset > 1.5 && this.new_offset < 1.7 ) {
             this.new_offset_valid = true;
           } else {
             this.new_offset_valid = false;
@@ -437,19 +439,30 @@
       created() {
         setInterval(this.run, 333);
         setInterval(this.checkConnection, 1000);
+        this.url = window.location.hostname ? window.location.hostname : "http://blueos.local";
       }
     });
 
     
   </script>
 
-  <style scoped>
+  <style>
   /* You can add styles specific to this component here */
   .mb-4 {
     margin-bottom: 1rem;
   }
   body, .v-application {
     font-family: 'Roboto', sans-serif !important;
+    background-color: #135DA355 !important;
+    color: white !important;
+    background-image: linear-gradient(160deg, #135DA388 0%, #012F4688 100%) !important;
+    backdrop-filter: blur(4.5px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+  }
+  .headline {
+    font-size: 1.5rem!important;
+    font-weight: 600 !important;
+    letter-spacing: normal!important;
   }
   </style>
 </body>
