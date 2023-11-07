@@ -8,7 +8,7 @@ COPY files/nginx.conf /etc/nginx/nginx.conf
 # Add our static files to a common folder to be provided by nginx
 RUN mkdir -p /site
 COPY files/register_service /site/register_service
-COPY site/* /site/
+COPY site /site/
 
 # Copy everything for your application
 COPY files/entrypoint.sh /entrypoint.sh
