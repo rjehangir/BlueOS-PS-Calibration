@@ -1,0 +1,41 @@
+name: Build ECR Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ dev ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get and set credentials variables
+        id: vars
+        run: | 
+          registry_password=$(curl -H "Authorization: Token ${{ secrets.PAT }}" https://app.blueos.cloud/api/v1/extensions/registry_credentials/ | jq -r .password)
+          echo "::add-mask::$registry_password"
+          echo "BCLOUD_REGISTRY_PASSWORD=$registry_password" >> $GITHUB_OUTPUT
+
+      - name: Login in ECR
+        run: | 
+          docker login -u AWS -p ${{ steps.vars.outputs.BCLOUD_REGISTRY_PASSWORD }} 316003453400.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to dockerhub
+        env:
+          ECR_REGISTRY: 316003453400.dkr.ecr.us-east-1.amazonaws.com
+          ECR_REPOSITORY: c409d7a8-a04b-43f0-95f8-3f2ae12a0b42
+          IMAGE_TAG: ${{ github.sha }}
+
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          platforms: linux/arm/v7, linux/arm64, linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:1.0.0
+          provenance: false
