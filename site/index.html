@@ -156,7 +156,7 @@
                 </v-list-item>
 
                 <v-alert v-if="!new_offset_valid" type="warning" dense>
-                  Warning: Something seems wrong here, please double check and proceed with caution! We expect an offset between 1.5-1.7 V
+                  Warning: Something seems wrong here, please double check and proceed with caution! We expect an offset between 0.305-0.33 V
                 </v-alert>
 
                 <v-card-actions class="justify-center">
@@ -353,7 +353,7 @@
           this.power = (this.voltage * this.average).toFixed(2);
 
           this.new_offset = (this.average - this.target_current) / this.batt_amp_pervlt + this.offset_param;
-          if ( this.new_offset > 1.5 && this.new_offset < 1.7 ) {
+          if ( this.new_offset >= 0.305 && this.new_offset <= 0.33 ) {
             this.new_offset_valid = true;
           } else {
             this.new_offset_valid = false;
